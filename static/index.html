@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Meeting Recording Uploader</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    .main-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .container {
+      background-color: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .upload-container {
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .recordings-container {
+      width: 100%;
+    }
+    input, select, button {
+      margin: 10px 0;
+      padding: 10px;
+      width: 100%;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    button:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
+    .secondary-btn {
+      background-color: #28a745;
+    }
+    .secondary-btn:hover {
+      background-color: #1e7e34;
+    }
+    #status {
+      margin-top: 20px;
+      white-space: pre-wrap;
+      text-align: left;
+      font-weight: bold;
+    }
+    .recordings-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    .recordings-table th,
+    .recordings-table td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+    .recordings-table th {
+      background-color: #f8f9fa;
+      font-weight: bold;
+    }
+    .recordings-table tr:nth-child(even) {
+      background-color: #f8f9fa;
+    }
+    .recordings-table tr:hover {
+      background-color: #e9ecef;
+    }
+    .no-recordings {
+      text-align: center;
+      color: #6c757d;
+      font-style: italic;
+      margin: 20px 0;
+    }
+    .error-message {
+      color: red;
+      margin: 10px 0;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .refresh-btn {
+      padding: 8px 16px;
+      font-size: 14px;
+      width: auto;
+      margin: 0;
+    }
+    .user-input-section {
+      margin-bottom: 20px;
+      padding: 20px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <!-- Upload Section -->
+    <div class="container upload-container">
+      <h2>Upload Meeting Video</h2>
+      <form id="uploadForm" enctype="multipart/form-data" action="/upload-video/" method="post">
+        <input type="file" name="file" id="file" accept=".mp4,.mov,.avi,.mkv" required>
+        <input type="text" name="meeting_id" id="meeting_id" placeholder="Enter Meeting ID (UUID format)" required>
+        <input type="number" name="user_id" id="user_id" placeholder="Enter User ID" required>
+        <button type="submit" id="uploadBtn">Upload & Process</button>
+      </form>
+      <pre id="status"></pre>
+    </div>
+
+    <!-- Recordings Section -->
+    <div class="container recordings-container">
+      <div class="section-header">
+        <h2>My Recordings</h2>
+        <button class="secondary-btn refresh-btn" onclick="refreshRecordings()">Refresh</button>
+      </div>
+      
+      <div class="user-input-section">
+        <input type="number" id="viewUserId" placeholder="Enter User ID to view recordings">
+        <button class="secondary-btn" onclick="loadRecordings()">Load Recordings</button>
+      </div>
+
+      <div id="recordingsError" class="error-message" style="display: none;"></div>
+      <div id="recordingsContent">
+        <div class="no-recordings">Enter a User ID above to view recordings</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUserId = null;
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = document.getElementById("file").files[0];
+      const meeting_id = document.getElementById("meeting_id").value;
+      const user_id = document.getElementById("user_id").value;
+      const status = document.getElementById("status");
+      const uploadBtn = document.getElementById("uploadBtn");
+
+      if (!file || !meeting_id || !user_id) {
+        status.textContent = "All fields are required.";
+        status.style.color = "red";
+        return;
+      }
+
+      // Basic UUID validation
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidPattern.test(meeting_id)) {
+        status.textContent = "Meeting ID must be a valid UUID format (e.g., 123e4567-e89b-12d3-a456-426614174000)";
+        status.style.color = "red";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("meeting_id", meeting_id);
+      formData.append("user_id", user_id);
+
+      status.style.color = "black";
+      status.textContent = "⏳ Uploading and processing...";
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = "Processing...";
+
+      try {
+        const response = await fetch("/upload", {
+          method: "POST",
+          body: formData
+        });
+        const result = await response.json();
+        if (response.ok) {
+          status.textContent = `✅ ${result.message}\n\nFilename: ${result.filename}\nMeeting ID: ${result.meeting_id}`;
+          status.style.color = "green";
+          
+          // Clear form
+          document.getElementById("uploadForm").reset();
+          
+          // Auto-refresh recordings if viewing the same user
+          if (currentUserId && currentUserId == user_id) {
+            setTimeout(() => {
+              loadRecordings();
+            }, 2000);
+          }
+        } else {
+          status.textContent = `❌ Upload failed: ${result.detail}`;
+          status.style.color = "red";
+        }
+      } catch (err) {
+        status.textContent = `❌ Error: ${err.message}`;
+        status.style.color = "red";
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "Upload & Process";
+      }
+    });
+
+    async function loadRecordings() {
+      const userIdInput = document.getElementById("viewUserId");
+      const userId = userIdInput.value;
+      const errorDiv = document.getElementById("recordingsError");
+      const contentDiv = document.getElementById("recordingsContent");
+
+      if (!userId) {
+        errorDiv.textContent = "Please enter a User ID";
+        errorDiv.style.display = "block";
+        return;
+      }
+
+      errorDiv.style.display = "none";
+      contentDiv.innerHTML = '<div class="no-recordings">Loading recordings...</div>';
+      currentUserId = parseInt(userId);
+
+      try {
+        const response = await fetch(`/recordings?user_id=${userId}`);
+        const result = await response.json();
+
+        if (response.ok) {
+          displayRecordings(result.recordings);
+        } else {
+          throw new Error(result.detail || 'Failed to fetch recordings');
+        }
+      } catch (err) {
+        errorDiv.textContent = `Error loading recordings: ${err.message}`;
+        errorDiv.style.display = "block";
+        contentDiv.innerHTML = '<div class="no-recordings">Failed to load recordings</div>';
+      }
+    }
+
+    function displayRecordings(recordings) {
+      const contentDiv = document.getElementById("recordingsContent");
+      
+      if (!recordings || recordings.length === 0) {
+        contentDiv.innerHTML = '<div class="no-recordings">No recordings found for this user</div>';
+        return;
+      }
+
+      let tableHTML = `
+        <table class="recordings-table">
+          <thead>
+            <tr>
+              <th>Meeting ID</th>
+              <th>Meeting Name</th>
+              <th>File Name</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      recordings.forEach(recording => {
+        tableHTML += `
+          <tr>
+            <td>${recording.id || 'N/A'}</td>
+            <td>${recording.meeting_name || 'N/A'}</td>
+            <td>${recording.file_name || 'N/A'}</td>
+          </tr>
+        `;
+      });
+
+      tableHTML += `
+          </tbody>
+        </table>
+      `;
+
+      contentDiv.innerHTML = tableHTML;
+    }
+
+    function refreshRecordings() {
+      if (currentUserId) {
+        loadRecordings();
+      } else {
+        const errorDiv = document.getElementById("recordingsError");
+        errorDiv.textContent = "No user selected. Please enter a User ID first.";
+        errorDiv.style.display = "block";
+      }
+    }
+
+    // Auto-generate UUID for meeting ID
+    function generateUUID() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    // Add button to generate UUID
+    document.addEventListener('DOMContentLoaded', function() {
+      const meetingIdInput = document.getElementById('meeting_id');
+      const generateBtn = document.createElement('button');
+      generateBtn.type = 'button';
+      generateBtn.textContent = 'Generate UUID';
+      generateBtn.style.width = 'auto';
+      generateBtn.style.marginLeft = '10px';
+      generateBtn.onclick = function() {
+        meetingIdInput.value = generateUUID();
+      };
+      meetingIdInput.parentNode.insertBefore(generateBtn, meetingIdInput.nextSibling);
+    });
+  </script>
+</body>
+</html>

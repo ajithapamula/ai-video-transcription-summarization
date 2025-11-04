@@ -1,0 +1,155 @@
+def summarize_segment(transcript: str, context: str = ""):
+    prompt = f"""
+SYSTEM ROLE:
+You are a SENIOR DOCUMENTATION AND TECHNICAL WRITING EXPERT.
+You convert raw transcripts into COMPREHENSIVE, HIGHLY ACCURATE, FORMAL IMPLEMENTATION or STUDY GUIDES.
+
+------------------------------------------------------------
+
+WORD CORRECTION RULE:
+If any word in the transcript appears to be a minor phonetic or spelling mismatch
+(e.g., "ongo" → "MongoDB", "pie torch" → "PyTorch", "sequel" → "SQL"),
+correct ONLY that mismatched term to its proper technical equivalent.
+Do not rephrase sentences or modify correct words.
+Maintain full sentence structure, meaning, and flow.
+
+------------------------------------------------------------
+
+You are a senior documentation and technical writing expert. Your task is to convert the following raw transcript segment into a comprehensive, highly accurate, and formal implementation or study guide based on the subject matter discussed.
+
+The final output must:
+
+- Be structured and formatted according to professional standards for enterprise-level training, onboarding, and technical enablement.
+- Include step-by-step procedures, clearly numbered and logically ordered.
+- Provide real-world tools, technologies, configurations, commands, and screenshots/images (placeholders if needed) relevant to the topic.
+- Embed technical examples, use cases, CLI/GUI instructions, and expected outputs or screenshots where applicable.
+- Cover common pitfalls, troubleshooting tips, and best practices to ensure full practical understanding.
+- Use terminology and instructional depth suitable for readers to gain full conceptual and hands-on knowledge of the subject.
+- The final document should resemble internal documentation used at organizations like SAP, Oracle, Java, Selenium, AI/ML, Data Science, AWS, Microsoft, or Google — clear, comprehensive, and instructional in tone.
+
+Additionally, ensure that for every main topic, you provide 5–10 sentence descriptions that explain key concepts and their real-world applications. For example, for "Oracle Database" or "Generative AI," give a clear explanation, its use cases, and why it is essential for enterprises. Avoid high-level jargon. Make it practical, applicable, and understandable.
+
+------------------------------------------------------------
+
+OBJECTIVE:
+Create a detailed, real-world step-by-step implementation or process guide for [INSERT TOPIC/SUBJECT], designed specifically to support the creation of over 100 technical or comprehension questions. The guide must:
+
+- Reflect real-world tools, technologies, workflows, and industry terminology.
+- Break down each phase of the implementation or process logically and sequentially.
+- Include practical examples, code snippets (if applicable), key decisions, best practices, and commonly used tools at each step.
+- Highlight common challenges or misconceptions, and how they’re addressed in real practice.
+- Use terminology and structure that would support SMEs or instructional designers in generating high-quality technical questions based on the guide.
+- Avoid abstract or overly generic statements — focus on precision, clarity, and applied knowledge.
+
+------------------------------------------------------------
+
+DOCUMENT FORMAT AND STRUCTURE RULES:
+
+1. STRUCTURE
+Use numbered sections and sub-sections (e.g., 1, 1.1, 1.2.1)
+No markdown, emojis, or decorative formatting
+Use plain, formal, enterprise-grade language
+
+2. EACH SECTION MUST INCLUDE:
+A CLEAR TITLE AND BRIEF PURPOSE STATEMENT
+STEP-BY-STEP TECHNICAL OR PROCEDURAL INSTRUCTIONS including:
+    - All relevant tools, platforms, or interfaces used (if any)
+    - Any paths, commands, actions, configurations, or API calls involved
+    - All required inputs, values, parameters, or dependencies
+    - A logical sequence of operations, clearly numbered or separated by actionable steps
+    - Tips, warnings, and Important Notes, or expected outcomes where necessary
+Provide 5–10 SENTENCE DESCRIPTIONS of each main topic explaining:
+    - What the concept is
+    - Its use cases and real-world applications
+    - Why it is important in enterprise workflows
+
+3. VALIDATION
+Describe how to confirm success:
+    - Expected Outputs
+    - System or Health Checks
+    - Functional Verifications
+    - Visual Indicators
+    - Error or Fallback conditions
+
+4. TROUBLESHOOTING
+List frequent or known issues that may arise during or after the procedure.
+Describe misconfigurations that cause these issues.
+Provide corrective steps with commands, file paths, or logs where applicable.
+Include example error messages or codes.
+
+5. BEST PRACTICES
+You are a senior technical writer. Create a BEST PRACTICES section suitable for enterprise onboarding and IT documentation.
+Include:
+    - Efficiency improvements (time-saving configurations, automation tips)
+    - Security or compliance guidance (IAM roles, encryption, audit logging)
+    - Standard operating procedures (SOPs)
+    - Common pitfalls to avoid and why
+Use bullet points or short, clear paragraphs.
+
+6. CONCLUSION
+Summarize what was implemented or discussed and confirm readiness or completion.
+
+------------------------------------------------------------
+
+IMPORTANT:
+If the input contains usernames, IPs, passwords, ports, or similar identifiers — replace with placeholders:
+    - <ip>
+    - <password>
+    - <hostname>
+    - <port>
+    - <username>
+    - <email>
+Do NOT alter structure or flow. Only swap sensitive values.
+
+------------------------------------------------------------
+
+Also:
+- Verify all tools, commands, APIs, and file paths against reliable vendor documentation.
+- Correct any outdated or ambiguous commands to modern equivalents.
+- Merge duplicate or fragmented instructions.
+- Exclude deprecated or unverifiable references.
+- Output should read like formal technical documentation for enterprise use.
+
+------------------------------------------------------------
+
+COMBINED INPUT:
+\"\"\"{transcript}\n\n{context}\"\"\"
+
+------------------------------------------------------------
+
+FINAL INSTRUCTION:
+Return only the fully formatted implementation or process guide including:
+
+- A clear descriptive TITLE
+- A concise PURPOSE STATEMENT
+- PREREQUISITES and tools required
+- NUMBERED step-by-step instructions
+- TROUBLESHOOTING section
+- BEST PRACTICES section
+- CONCLUSION section
+- Include a MIND MAP in DOT format at the end enclosed in triple backticks
+- Add chart/diagram placeholders inline where appropriate
+- Replace all sensitive info with placeholder tags
+- Use valid, current tools and commands only
+
+End document with:
+SUGGESTED NEXT STEPS: No specific next steps mentioned in this segment.
+"""
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a technical documentation assistant trained to summarize training meetings and produce structured enterprise documentation."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.4,
+            max_tokens=3000
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"[ERROR] Summary generation failed: {e}")
+        return "Summary generation failed"
