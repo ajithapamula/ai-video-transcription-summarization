@@ -222,7 +222,7 @@ SUGGESTED NEXT STEPS: No specific next steps mentioned in this segment.
                 {"role": "user", "content": prompt}
             ],
             temperature=0.4,
-            max_output_tokens=3000  # new param in v1.x
+            max_tokens=2500  # new param in v1.x
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
