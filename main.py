@@ -123,36 +123,29 @@ def save_docx(content: str, path: str, image_path: str = None, title: str = ""):
 
 async def transcribe_chunk(chunk_file: str, offset: float):
     """
-    Transcribes a small WAV chunk using Whisper (new OpenAI v1.x API).
+    Transcribes a small WAV chunk using the GPT-4o transcribe API.
     Returns list of segment dicts with 'start', 'end', and 'text'.
+    Compatible with latest OpenAI API (no verbose_json).
     """
     try:
         with open(chunk_file, "rb") as f:
             result = client.audio.transcriptions.create(
-                model="whisper-1",
+                model="gpt-4o-transcribe",
                 file=f,
-                response_format="verbose_json"
+                response_format="json"  # ✅ fixed: only 'json' or 'text' allowed
             )
 
-        segments = []
-        if hasattr(result, "segments") and result.segments:
-            # Use detailed segment timing if available
-            for seg in result.segments:
-                start = float(getattr(seg, "start", 0))
-                end = float(getattr(seg, "end", 0))
-                text = getattr(seg, "text", "").strip()
-                segments.append({
-                    "start": start + offset,
-                    "end": end + offset,
-                    "text": text
-                })
-        else:
-            # Fallback — single text blob
-            segments.append({
-                "start": offset,
-                "end": offset + 5,
-                "text": getattr(result, "text", "").strip()
-            })
+        # ✅ Safely parse response
+        text = result.text.strip() if hasattr(result, "text") else ""
+
+        # Since no detailed timestamps are returned, create pseudo-segments
+        # to preserve timing continuity for SRT generation
+        approx_duration = 5  # seconds per chunk fallback
+        segments = [{
+            "start": offset,
+            "end": offset + approx_duration,
+            "text": text
+        }]
 
         return segments
 
@@ -228,6 +221,72 @@ SUGGESTED NEXT STEPS: No specific next steps mentioned in this segment.
     except Exception as e:
         logger.error(f"[ERROR] Summary generation failed: {e}")
         return "Summary generation failed."
+def analyze_trainer_performance(transcript: str) -> dict:
+    """
+    Analyze trainer's technical content, explanation clarity, friendliness, and communication
+    based purely on transcript semantics and delivery style markers.
+    Uses GPT-4o for text-based behavioral and technical scoring.
+    """
+    if not transcript.strip():
+        return {
+            "technical_content": 0,
+            "explanation_clarity": 0,
+            "friendliness": 0,
+            "communication": 0,
+            "overall_feedback": "No speech detected for evaluation."
+        } 
+
+    prompt = f"""
+You are an expert communication and training evaluator.
+Evaluate the trainer's communication quality, tone, and content in the transcript below.
+
+TRANSCRIPT:
+\"\"\"{transcript}\"\"\"
+
+Evaluate across the following dimensions (each scored 0–100%):
+1. Technical Content — accuracy, depth, and domain clarity.
+2. Explanation Clarity — how logically and simply ideas are explained.
+3. Friendliness — warmth, politeness, and positive tone.
+4. Communication – evaluate using Indian English standards:
+   - Focus on fluency, confidence, and comfort with Indian accent.
+   - Accept light Indianisms such as “basically”, “ok na”, “ya”, etc.
+   - Penalize only unclear speech or excessive filler use (“umm”, “like”, “you know”).
+   - Do not reduce marks for accent style — evaluate clarity, not foreign pronunciation.
+Output a short, factual JSON report with numeric scores and 1–2 lines of feedback.
+Format exactly as:
+
+{{
+  "technical_content": <number>,
+  "explanation_clarity": <number>,
+  "friendliness": <number>,
+  "communication": <number>,
+  "overall_feedback": "<short summary>"
+}}
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a behavioral analytics and technical communication evaluator."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=500
+        )
+
+        raw = response.choices[0].message.content.strip()
+        # Extract JSON safely
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            return json.loads(match.group(0))
+        else:
+            logger.warning("⚠️ Unable to parse trainer evaluation JSON.")
+            return {"error": "Failed to parse evaluation output."}
+
+    except Exception as e:
+        logger.error(f"[ERROR] Trainer performance evaluation failed: {e}")
+        return {"error": str(e)}
 
 # === VIDEO PROCESS ===
 async def process_video(video_path: str, meeting_id: str, user_id: str):
@@ -264,6 +323,8 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
         chunk_results = await asyncio.gather(*tasks)
         all_segments = [seg for result in chunk_results for seg in result]
         full_transcript = ''.join(seg['text'] for seg in all_segments)
+        # 3️⃣.1 Trainer Performance Evaluation
+        trainer_scores = analyze_trainer_performance(full_transcript)
 
         # 4️⃣ Subtitles Generation (English, Hindi, Telugu)
         srt_paths = {}
@@ -354,6 +415,7 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
             "subtitles": subtitle_urls,
             "transcript_text": full_transcript,
             "summary_text": summary_text,
+            "trainer_evaluation": trainer_scores,
             "timestamp": datetime.now()
         })
 
