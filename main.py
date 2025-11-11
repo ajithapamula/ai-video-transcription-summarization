@@ -172,6 +172,18 @@ The final output must:
 
 ---
 
+### 🔹 NEW REQUIREMENT (Added):
+For each identified main topic or concept in the transcript:
+- If the trainer or speaker **mentions an example**, clearly include it as **"Trainer Example:"** and rewrite it neatly while preserving meaning.  
+- If **no example is given**, automatically add a **realistic, factually correct example** based on your general knowledge or verified public data sources (documentation-level).  
+- Keep examples relevant to the concept.  
+  - Example: if the topic is “API Integration,” generate an example using a REST or GraphQL call.  
+  - Example: if the topic is “Team Collaboration,” generate a short workplace scenario or dialogue.  
+- Ensure examples are short (2–4 lines), professional, and clearly separated from the explanation text.  
+- Always mark them explicitly as either “Trainer Example” or “Generated Example”.
+
+---
+
 OBJECTIVE:
 
 Create a detailed, real-world step-by-step implementation or process guide for [INSERT TOPIC/SUBJECT], designed specifically to support the creation of over 100 technical or comprehension questions. The guide must:
@@ -240,7 +252,7 @@ If the input contains any values such as usernames, IP addresses, server names, 
 - Replace any username with: <username>
 - Replace any email with: <email>
 
-Do NOT alter the sentence structure, meaning, or flow — keep the language intact while swapping the actual values with tags
+Do NOT alter the sentence structure, meaning, or flow — keep the language intact while swapping the actual values with tags.
 Do not display or retain real values — just show the placeholder tag. Maintain the original meaning and flow of the instructions.
 Format the output as clean, professional documentation, suitable for inclusion in implementation guides, SOPs, or training materials.
 Highlight any placeholders in a way that makes it easy for the user to identify where to substitute their own values later.
@@ -273,7 +285,7 @@ COMBINED INPUT:
 ---
 
 FINAL INSTRUCTION:
-Return only the fully formatted implementation or process guide includes below
+Return only the fully formatted implementation or process guide that includes below:
 
 - A clear, descriptive title
 - A concise purpose statement or overview
@@ -294,6 +306,7 @@ Return only the fully formatted implementation or process guide includes below
 End Document with Standardized "Suggested Next Steps" Note  
 *Suggested next steps: No specific next steps mentioned in this segment.*
 """
+
 
     try:
         response = client.chat.completions.create(
