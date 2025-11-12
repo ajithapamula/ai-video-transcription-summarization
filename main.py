@@ -64,6 +64,24 @@ db = mongo_client["sample_db"]
 collection = db["test"]
 
 # === HELPERS ===
+
+def clean_markdown(text: str) -> str:
+    """
+    Cleans markdown syntax from LLM summary while preserving hierarchy and readability.
+    """
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)  # remove code blocks
+    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)  # remove bold
+    text = re.sub(r"`([^`]*)`", r"\1", text)  # inline code cleanup
+    
+    # convert headings (#, ##, ###)
+    text = re.sub(r"^### (.*)", r"\1", text, flags=re.MULTILINE)
+    text = re.sub(r"^## (.*)", r"\1", text, flags=re.MULTILINE)
+    text = re.sub(r"^# (.*)", r"\1", text, flags=re.MULTILINE)
+    
+    # normalize spacing
+    text = re.sub(r"\n{2,}", "\n\n", text)
+    return text.strip()
+
 def upload_to_s3(folder: str, file_path: str, file_name: str):
     try:
         s3_key = f"{folder}/{file_name}"
@@ -104,15 +122,51 @@ def generate_graph(dot_code: str, output_path: str):
     return s.render(filename=output_path, format="png", cleanup=True)
 
 def save_docx(content: str, path: str, image_path: str = None, title: str = ""):
+    from docx.shared import RGBColor
+    
     doc = Document()
     if title:
         heading = doc.add_heading(title, level=1)
         heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     for line in content.splitlines():
-        p = doc.add_paragraph(line.strip())
-        p.style.font.size = Pt(12)
+        line = line.strip()
+        if not line:
+            continue
+        
+        # === Headings ===
+        if line.startswith("### "):
+            run = doc.add_heading(line[4:].strip(), level=3).runs[0]
+            run.font.color.rgb = RGBColor(0, 0, 0)
+        elif line.startswith("## "):
+            run = doc.add_heading(line[3:].strip(), level=2).runs[0]
+            run.font.color.rgb = RGBColor(0, 0, 0)
+        elif line.startswith("# "):
+            run = doc.add_heading(line[2:].strip(), level=1).runs[0]
+            run.font.color.rgb = RGBColor(0, 0, 0)
 
+        # === Bold Examples ===
+        elif line.lower().startswith("example"):
+            p = doc.add_paragraph()
+            run = p.add_run(line)
+            run.bold = True
+            run.font.color.rgb = RGBColor(0, 0, 0)
+
+        # === Normal text ===
+        else:
+            p = doc.add_paragraph(line)
+            p.style.font.size = Pt(12)
+
+    # === Mind map image ===
+    if image_path and os.path.exists(image_path):
+        doc.add_page_break()
+        doc.add_heading("Mind Map", level=2)
+        doc.add_picture(image_path, width=Inches(6))
+        doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    doc.save(path)
+
+    # === Handle Mind Map Image ===
     if image_path and os.path.exists(image_path):
         doc.add_page_break()
         doc.add_heading("Mind Map", level=2)
@@ -174,13 +228,13 @@ The final output must:
 
 ### 🔹 NEW REQUIREMENT (Added):
 For each identified main topic or concept in the transcript:
-- If the trainer or speaker **mentions an example**, clearly include it as **"Trainer Example:"** and rewrite it neatly while preserving meaning.  
-- If **no example is given**, automatically add a **realistic, factually correct example** based on your general knowledge or verified public data sources (documentation-level).  
-- Keep examples relevant to the concept.  
-  - Example: if the topic is “API Integration,” generate an example using a REST or GraphQL call.  
-  - Example: if the topic is “Team Collaboration,” generate a short workplace scenario or dialogue.  
-- Ensure examples are short (2–4 lines), professional, and clearly separated from the explanation text.  
-- Always mark them explicitly as either “Trainer Example” or “Generated Example”.
+- For every main topic or sub-topic, include a dedicated **"Example" heading** section immediately after the explanation.  
+- If the trainer or speaker **mentions an example**, clearly include it under the subheading **“Example – Trainer Example:”** and rewrite it neatly while preserving meaning.  
+- If **no example is given**, automatically add a **realistic, factually correct example** from verified, real-world or documentation-level knowledge under the subheading **“Example – Generated Example:”**.  
+- Each example must be relevant, concise (2–4 lines), and directly illustrate the topic.  
+  - For technical topics: include configuration snippets, commands, or scenarios.  
+  - For non-technical or soft-skill topics: include short, natural conversational or behavioral examples.  
+- Examples must always be formatted under the “Example” heading — no topic should be left without one.  
 
 ---
 
@@ -471,6 +525,7 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
 
         # 6️⃣ Summary Generation (LLM)
         summary_text = summarize_segment(full_transcript)
+        summary_text = clean_markdown(summary_text)
 
         # 7️⃣ Mind Map Extraction & Image Creation
         image_path = os.path.join(workdir, "mindmap.png")
@@ -498,7 +553,7 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
         summary_url = upload_to_s3("summary", summary_doc,
                                    f"{meeting_id}_{user_id}_summary.docx")
 
-        subtitle_urls = {}
+        subtitle_urls = {}   
         for lang, path in srt_paths.items():
             subtitle_urls[lang] = upload_to_s3(
                 "videos", path, f"{meeting_id}_{user_id}_subs_{lang}.srt"
