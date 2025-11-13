@@ -1,6 +1,8 @@
 🎥 AI Video Transcription & Summarization Service
+```
+```
 🧠 Overview
-
+```
 This project provides a complete AI-driven pipeline that:
 
 Accepts video uploads via a REST API.
@@ -30,9 +32,9 @@ Training video summarization
 Knowledge base generation
 
 Technical documentation automation
-
+```
 🏗️ Architecture
-
+```
 '''
  ┌────────────┐     ┌──────────────┐     ┌───────────┐
  │  FastAPI   │───▶ │  Processing  │───▶ │  MongoDB  │
@@ -44,10 +46,10 @@ Technical documentation automation
        │
        ▼
   🎬  User Uploads
-'''
 
+```
 🚀 Features
-
+```
 🎧 Audio extraction and noise reduction using FFmpeg
 
 🗣️ Speech-to-text via OpenAI Whisper
@@ -63,8 +65,9 @@ Technical documentation automation
 ☁️ Automatic upload to AWS S3
 
 🗄️ Metadata persistence in MongoDB
-
+```
 🧩 Tech Stack
+```
 Component	Technology
 Backend API	FastAPI
 Transcription	OpenAI Whisper
@@ -75,8 +78,9 @@ Visualization	Graphviz
 Storage	AWS S3
 Database	MongoDB
 Document Export	Python-Docx
-
+```
 ⚙️ Setup Instructions
+```
 1. Clone Repository
 git clone https://github.com/<your-username>/ai-video-summary.git
 cd ai-video-summary
@@ -105,16 +109,18 @@ export AWS_REGION="ap-south-1"
 
 
 Update your MongoDB credentials and host inside the script or load them from .env.
-
+```
 ▶️ Run the Server
+```
 uvicorn main:app --host 0.0.0.0 --port 8010 --reload
 
 
 Then open your browser:
 
 http://localhost:8010
-
+```
 📡 API Endpoints
+```
 POST /upload/
 
 Description: Upload a video file for processing.
@@ -151,9 +157,9 @@ curl http://localhost:8010/health
 Response:
 
 {"status": "healthy"}
-
+```
 🧪 Example Workflow
-
+```
 Upload your video:
 
 curl -X POST "http://localhost:8010/upload/" \
@@ -181,24 +187,26 @@ subs_en.srt / subs_hi.srt / subs_te.srt	Subtitles
 transcript.docx	Full transcript text
 summary.docx	AI-generated structured summary
 mindmap.png	Visualization of summary topics
+```
 🔒 Security Notes
-
+```
 Replace any sensitive data (like <ip> or <password>) with placeholders.
 
 Ensure your S3 bucket and MongoDB access credentials are protected.
 
 Consider adding authentication or API keys to restrict API access.
-
+```
 🧰 Troubleshooting
-
+```
 Issue	Possible Cause	Fix
 FFmpeg not found	Not installed or not in PATH	Install via sudo apt install ffmpeg
 Whisper error	Wrong OpenAI key or model name	Verify OPENAI_API_KEY
 S3 upload fails	Incorrect AWS credentials	Check environment vars
 MongoDB auth failed	Wrong username/password	Update URI in code
 Slow processing	Large videos / limited GPU	Reduce video length or chunk size
+```
 🧩 Future Improvements
-
+```
 Add async job queue (Celery / Redis)
 
 Support for speaker diarization
