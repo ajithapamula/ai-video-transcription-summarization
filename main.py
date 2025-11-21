@@ -25,8 +25,11 @@ import torch
 import boto3
 from botocore.exceptions import NoCredentialsError
 from openai import OpenAI
+from groq import Groq
+
 
 client = OpenAI()
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # === GPU CHECK ===
 print("Using GPU:", torch.cuda.is_available())
@@ -57,11 +60,15 @@ mongo_user = quote_plus("connectly")
 mongo_password = quote_plus("LT@connect25")
 mongo_host = "192.168.48.201"
 mongo_port = "27017"
-MONGO_URI = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/admin?authSource=admin"
+
+MONGO_URI = (
+    f"mongodb://{mongo_user}:{mongo_password}@"
+    f"{mongo_host}:{mongo_port}/ml_notes?authSource=admin"
+)
 
 mongo_client = MongoClient(MONGO_URI)
-db = mongo_client["sample_db"]
-collection = db["test"]
+db = mongo_client["test"]
+collection = db["summaries"]
 
 # === HELPERS ===
 
@@ -123,89 +130,97 @@ def generate_graph(dot_code: str, output_path: str):
 
 def save_docx(content: str, path: str, image_path: str = None, title: str = ""):
     from docx.shared import RGBColor
-    
+
     doc = Document()
+
+    # === Title ===
     if title:
         heading = doc.add_heading(title, level=1)
         heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
+    # === Main Content ===
     for line in content.splitlines():
         line = line.strip()
         if not line:
             continue
-        
-        # === Headings ===
+
+        # Headings
         if line.startswith("### "):
             run = doc.add_heading(line[4:].strip(), level=3).runs[0]
             run.font.color.rgb = RGBColor(0, 0, 0)
+
         elif line.startswith("## "):
             run = doc.add_heading(line[3:].strip(), level=2).runs[0]
             run.font.color.rgb = RGBColor(0, 0, 0)
+
         elif line.startswith("# "):
             run = doc.add_heading(line[2:].strip(), level=1).runs[0]
             run.font.color.rgb = RGBColor(0, 0, 0)
 
-        # === Bold Examples ===
+        # Bold Example headings
         elif line.lower().startswith("example"):
             p = doc.add_paragraph()
             run = p.add_run(line)
             run.bold = True
             run.font.color.rgb = RGBColor(0, 0, 0)
 
-        # === Normal text ===
+        # Normal text
         else:
             p = doc.add_paragraph(line)
             p.style.font.size = Pt(12)
 
-    # === Mind map image ===
+    # === Add Mind Map (ONE TIME ONLY) ===
     if image_path and os.path.exists(image_path):
         doc.add_page_break()
         doc.add_heading("Mind Map", level=2)
         doc.add_picture(image_path, width=Inches(6))
         doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    doc.save(path)
-
-    # === Handle Mind Map Image ===
-    if image_path and os.path.exists(image_path):
-        doc.add_page_break()
-        doc.add_heading("Mind Map", level=2)
-        doc.add_picture(image_path, width=Inches(6))
-        doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-
+    # === Save once ===
     doc.save(path)
 
 async def transcribe_chunk(chunk_file: str, offset: float):
-    """
-    Transcribes a small WAV chunk using the GPT-4o transcribe API.
-    Returns list of segment dicts with 'start', 'end', and 'text'.
-    Compatible with latest OpenAI API (no verbose_json).
-    """
     try:
         with open(chunk_file, "rb") as f:
-            result = client.audio.transcriptions.create(
-                model="gpt-4o-transcribe",
+            result = groq_client.audio.transcriptions.create(
+                model="whisper-large-v3-turbo",
                 file=f,
-                response_format="json"  # ✅ fixed: only 'json' or 'text' allowed
+                response_format="verbose_json"
             )
 
-        # ✅ Safely parse response
-        text = result.text.strip() if hasattr(result, "text") else ""
+        segments = []
 
-        # Since no detailed timestamps are returned, create pseudo-segments
-        # to preserve timing continuity for SRT generation
-        approx_duration = 5  # seconds per chunk fallback
-        segments = [{
-            "start": offset,
-            "end": offset + approx_duration,
-            "text": text
-        }]
+        # CASE 1 — Whisper returned real timestamped segments
+        if hasattr(result, "segments") and result.segments:
+            for seg in result.segments:
+                segments.append({
+                    "start": offset + float(seg["start"]),
+                    "end": offset + float(seg["end"]),
+                    "text": seg["text"].strip()
+                })
+
+        # CASE 2 — No segments, fallback
+        else:
+            text = (result.text or "").strip()
+            if not text:
+                text = "[No speech detected]"
+
+            segments.append({
+                "start": offset,
+                "end": offset + 5,
+                "text": text
+            })
 
         return segments
 
     except Exception as e:
-        logger.error(f"[ERROR] Transcribing chunk failed: {chunk_file} - {e}")
-        return []
+        logger.error(f"[GROQ ERROR] {e}")
+        return [{
+            "start": offset,
+            "end": offset + 5,
+            "text": "[Transcription failed]"
+        }]
+
 
 
 def summarize_segment(transcript: str, context: str = ""):
@@ -318,7 +333,7 @@ Also:
 
  1. If something appears ambiguous, incorrect, or outdated, correct it to its current, supported version.
  2. Use only commands, APIs, or tool names that are verifiably valid and relevant to the topic context.
-- Consolidate duplicate or fragmented instructions:
+- Consolidate duplicate or f                          ragmented instructions:
  1. If a step or process is repeated across segments, merge them into a single, complete, and accurate version.
  2. Remove redundancy and preserve the most detailed and correct version of each step.
  3. Do NOT include deprecated or unverifiable content:
@@ -376,6 +391,7 @@ End Document with Standardized "Suggested Next Steps" Note
     except Exception as e:
         logger.error(f"[ERROR] Summary generation failed: {e}")
         return "Summary generation failed."
+    
 def analyze_trainer_performance(transcript: str) -> dict:
     """
     Analyze trainer's technical content, explanation clarity, friendliness, and communication
@@ -524,8 +540,8 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
         subprocess.run(cmd, check=True)
 
         # 6️⃣ Summary Generation (LLM)
-        summary_text = summarize_segment(full_transcript)
-        summary_text = clean_markdown(summary_text)
+        summary_text_raw = summarize_segment(full_transcript)
+        summary_text = clean_markdown(summary_text_raw)
 
         # 7️⃣ Mind Map Extraction & Image Creation
         image_path = os.path.join(workdir, "mindmap.png")
@@ -570,7 +586,7 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
             "image_url": image_url,
             "subtitles": subtitle_urls,
             "transcript_text": full_transcript,
-            "summary_text": summary_text,
+            "summary": summary_text,
             "trainer_evaluation": trainer_scores,
             "timestamp": datetime.now()
         })
