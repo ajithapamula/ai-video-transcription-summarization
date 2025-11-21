@@ -206,9 +206,6 @@ Support for speaker diarization
 Automatic language detection
 
 
-
-
-
 🧑‍💻 Author
 
 Developed by: Ajitha
