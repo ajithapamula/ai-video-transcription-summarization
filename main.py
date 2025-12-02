@@ -236,9 +236,6 @@ The final output must:
 - Cover common pitfalls, troubleshooting tips, and best practices to ensure full practical understanding.
 - Use terminology and instructional depth suitable for readers to gain 100% conceptual and hands-on knowledge of the subject.
 - The final document should resemble internal documentation used at organizations like SAP, Oracle, Java, Selenium, AI/ML, Data Science, AWS, Microsoft, or Google — clear, comprehensive, and instructional in tone.
-
-- Additionally, ensure that **for every main topic, you provide 5-10 sentence descriptions** that explain key concepts and their real-world applications. For example, for "Oracle Database" or "Generative AI," give a clear explanation, its use cases, and why it is essential for enterprises. Avoid high-level jargon. Make it practical, applicable, and understandable.
-
 ---
 
 ### 🔹 NEW REQUIREMENT (Added):
@@ -263,6 +260,7 @@ Create a detailed, real-world step-by-step implementation or process guide for [
 - Highlight common challenges or misconceptions, and how they’re addressed in real practice.
 - Use terminology and structure that would support SMEs or instructional designers in generating high-quality technical questions based on the guide.
 - Avoid abstract or overly generic statements — focus on precision, clarity, and applied knowledge.
+- If the transcript is fully or mostly coding-related (Python, Java, JavaScript, React, SQL, DevOps, automation, APIs, backend, etc.), you must include complete coding examples with correct indentation, working syntax, and explanatory comments. You must also expand the matter to look like a proper coding implementation guide, including functions, scripts, API samples, folder structures, command-line usage, debugging steps, and real-world coding workflows.
 
 ---
 
@@ -385,7 +383,7 @@ End Document with Standardized "Suggested Next Steps" Note
                 {"role": "user", "content": prompt}
             ],
             temperature=0.4,
-            max_tokens=2500  # new param in v1.x
+            max_tokens=14000 # new param in v1.x
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
