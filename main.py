@@ -76,7 +76,10 @@ def clean_markdown(text: str) -> str:
     """
     Cleans markdown syntax from LLM summary while preserving hierarchy and readability.
     """
-    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)  # remove code blocks
+    # Allow code blocks. Only strip markdown syntax, not code.
+    text = re.sub(r"```(\w+)?", "", text)
+    text = text.replace("```", "")
+
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)  # remove bold
     text = re.sub(r"`([^`]*)`", r"\1", text)  # inline code cleanup
     
@@ -222,7 +225,6 @@ async def transcribe_chunk(chunk_file: str, offset: float):
         }]
 
 
-
 def summarize_segment(transcript: str, context: str = ""):
     prompt = f"""
 You are a senior documentation and technical writing expert. Your task is to convert the following raw transcript segment into a comprehensive, highly accurate, and formal implementation or study guide based on the subject matter discussed.
@@ -237,18 +239,77 @@ The final output must:
 - Use terminology and instructional depth suitable for readers to gain 100% conceptual and hands-on knowledge of the subject.
 - The final document should resemble internal documentation used at organizations like SAP, Oracle, Java, Selenium, AI/ML, Data Science, AWS, Microsoft, or Google — clear, comprehensive, and instructional in tone.
 ---
+---------------------------------------------------------------------
+---------------------------------------------------------------------
+EXPLANATION STYLE RULE (VERY IMPORTANT – LARGE SCALE):
+The output must follow a TEACHING STYLE similar to real trainers on YouTube:
+- Step-by-step explanation
+- Very clear beginner-friendly structure
+- Concepts explained in simple language
+- Real examples in each section
+- Code examples ONLY when transcript mentions coding
+- If NOT coding, create normal real-life examples (NOT code)
 
-### 🔹 NEW REQUIREMENT (Added):
-For each identified main topic or concept in the transcript:
-- For every main topic or sub-topic, include a dedicated **"Example" heading** section immediately after the explanation.  
-- If the trainer or speaker **mentions an example**, clearly include it under the subheading **“Example – Trainer Example:”** and rewrite it neatly while preserving meaning.  
-- If **no example is given**, automatically add a **realistic, factually correct example** from verified, real-world or documentation-level knowledge under the subheading **“Example – Generated Example:”**.  
-- Each example must be relevant, concise (2–4 lines), and directly illustrate the topic.  
-  - For technical topics: include configuration snippets, commands, or scenarios.  
-  - For non-technical or soft-skill topics: include short, natural conversational or behavioral examples.  
-- Examples must always be formatted under the “Example” heading — no topic should be left without one.  
+The explanation must look like a proper "Getting Started Guide" or
+"Beginner-Friendly Training Material", similar to a programming teacher
+explaining concepts slowly and clearly.
 
----
+---------------------------------------------------------------------
+AUTO CODING EXAMPLE RULE (LARGE SCALE & HIGH ACCURACY):
+
+To ensure reliability at scale, use a 3-layer detection system.
+
+LAYER 1 — LANGUAGE NAME DETECTION  
+If the transcript explicitly mentions ANY programming language name, treat it as coding content.  
+Examples: python, java, c++, c, javascript, node, react, typescript, sql, html, css, go, rust, php, swift, kotlin, ruby.
+
+IF ANY OF THESE APPEAR → coding = TRUE.
+
+LAYER 2 — CODING CONCEPT DETECTION  
+If transcript contains ANY coding-related concept, assume it is a coding session even if the language name is missing.  
+Examples:  
+function, class, variable, loop, array, object, api, database query, print, return statement, script, terminal, compile, IDE, debugging, syntax error, framework, library.
+
+IF ANY OF THESE APPEAR → coding = TRUE.
+
+LAYER 3 — SEMANTIC INTENT DETECTION  
+If transcript describes ANY of the following, treat as coding:  
+- “we are writing code”  
+- “this is a programming class”  
+- “run this program”  
+- “create a project”  
+- “build an application”  
+- “explain this code”  
+- “coding tutorial style explanation”  
+
+IF ANY SEMANTIC CUE APPEARS → coding = TRUE.
+
+---------------------------------------------------------------------
+CODING BEHAVIOR RULES:
+
+IF coding = TRUE:
+    • Detect the PRIMARY language discussed in transcript  
+    • Generate clean, complete runnable code  
+    • Explain the code like a trainer teaching beginners  
+    • Add comments (# , // , /* */ depending on language)  
+    • Add simple exercises or variations  
+    • Add a final “Complete Code Example” section before Conclusion  
+
+IF coding = FALSE:
+    • Do NOT generate any code  
+    • Provide only business/theory/real-life examples  
+
+---------------------------------------------------------------------
+CODE EXAMPLE RULE:
+
+Every coding topic MUST include:
+    - Small inline examples for each concept
+    - One large complete runnable code example at the end
+
+Non-coding topics MUST include:
+    - Real-world scenarios
+    - No code at all
+---------------------------------------------------------------------
 
 OBJECTIVE:
 
@@ -345,6 +406,31 @@ Also:
   4. Logical flow suitable for developers, engineers, or IT teams
 
 ---
+
+---------------------------------------------------------------------
+FINAL FULL CODE OUTPUT RULE (ADD AT END OF SUMMARY)
+Before generating the Conclusion and Mind Map, create a new section titled:
+
+"Complete Code Example (Only When Coding Is Detected)"
+
+RULES:
+1. This section must appear at the END of the summary, right before Conclusion.
+2. Add this section ONLY if the transcript contains ANY coding-related content.
+3. Detect coding language automatically (Python, Java, C++, JavaScript, SQL, etc.)
+4. Provide ONE clean, runnable, complete code example:
+      - Full imports / package statements
+      - Functions or classes
+      - Main execution block
+      - Comments explaining the logic
+      - Correct indentation and syntax
+5. The code must represent the MAIN concept taught in the transcript.
+6. If transcript is NOT coding related → do NOT generate this section.
+7. After this code block, continue with:
+      • Conclusion
+      • Mind map (DOT)
+      • Diagram placeholder
+---------------------------------------------------------------------
+
 
 COMBINED INPUT:
 \"\"\"{transcript}\n\n{context}\"\"\"
