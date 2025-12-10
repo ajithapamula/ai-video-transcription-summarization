@@ -240,75 +240,53 @@ The final output must:
 - The final document should resemble internal documentation used at organizations like SAP, Oracle, Java, Selenium, AI/ML, Data Science, AWS, Microsoft, or Google — clear, comprehensive, and instructional in tone.
 ---
 ---------------------------------------------------------------------
----------------------------------------------------------------------
 EXPLANATION STYLE RULE (VERY IMPORTANT – LARGE SCALE):
-The output must follow a TEACHING STYLE similar to real trainers on YouTube:
+
+The output must follow a TEACHING STYLE similar to real instructors on YouTube:
 - Step-by-step explanation
-- Very clear beginner-friendly structure
+- Beginner-friendly structure
 - Concepts explained in simple language
-- Real examples in each section
-- Code examples ONLY when transcript mentions coding
-- If NOT coding, create normal real-life examples (NOT code)
+- Real examples in EVERY section
+- Coding examples ONLY when transcript includes coding
+- If NOT coding → produce real-life scenario examples (not code)
 
-The explanation must look like a proper "Getting Started Guide" or
-"Beginner-Friendly Training Material", similar to a programming teacher
-explaining concepts slowly and clearly.
+The explanation must look like a proper "Getting Started Guide" or "Beginner-Friendly Training Material".
 
 ---------------------------------------------------------------------
-AUTO CODING EXAMPLE RULE (LARGE SCALE & HIGH ACCURACY):
+FINAL FULL CODE OUTPUT RULE (LARGE SCALE – ALWAYS CORRECT):
 
-To ensure reliability at scale, use a 3-layer detection system.
+Before generating the Conclusion and Mind Map, create a new section titled:
 
-LAYER 1 — LANGUAGE NAME DETECTION  
-If the transcript explicitly mentions ANY programming language name, treat it as coding content.  
-Examples: python, java, c++, c, javascript, node, react, typescript, sql, html, css, go, rust, php, swift, kotlin, ruby.
+"Complete Code Example (Only When Coding Is Detected)"
 
-IF ANY OF THESE APPEAR → coding = TRUE.
-
-LAYER 2 — CODING CONCEPT DETECTION  
-If transcript contains ANY coding-related concept, assume it is a coding session even if the language name is missing.  
-Examples:  
-function, class, variable, loop, array, object, api, database query, print, return statement, script, terminal, compile, IDE, debugging, syntax error, framework, library.
-
-IF ANY OF THESE APPEAR → coding = TRUE.
-
-LAYER 3 — SEMANTIC INTENT DETECTION  
-If transcript describes ANY of the following, treat as coding:  
-- “we are writing code”  
-- “this is a programming class”  
-- “run this program”  
-- “create a project”  
-- “build an application”  
-- “explain this code”  
-- “coding tutorial style explanation”  
-
-IF ANY SEMANTIC CUE APPEARS → coding = TRUE.
-
----------------------------------------------------------------------
-CODING BEHAVIOR RULES:
+TRIGGER CONDITIONS (coding = TRUE):
+Coding is TRUE if ANY of the following occur:
+1. Transcript or explanation includes ANY code snippet.
+2. Transcript mentions ANY programming language:
+   (Python, Java, C++, JavaScript, SQL, React, Node, HTML, etc.)
+3. Transcript mentions ANY programming concepts:
+   (function, class, variable, loop, API, script, project, compiler, debugging, IDE)
+4. The assistant generated ANY inline code earlier in the explanation.
 
 IF coding = TRUE:
-    • Detect the PRIMARY language discussed in transcript  
-    • Generate clean, complete runnable code  
-    • Explain the code like a trainer teaching beginners  
-    • Add comments (# , // , /* */ depending on language)  
-    • Add simple exercises or variations  
-    • Add a final “Complete Code Example” section before Conclusion  
+    • ALWAYS generate the "Complete Code Example" section.
+    • Provide ONE clean, runnable, complete code example that represents the main topic.
+    • Include:
+        - Imports (if applicable)
+        - Functions or classes
+        - Main execution block
+        - Comments explaining the logic
+        - Proper indentation & syntax
+        - Output example (if applicable)
 
 IF coding = FALSE:
-    • Do NOT generate any code  
-    • Provide only business/theory/real-life examples  
+    • Do NOT generate this section.
 
----------------------------------------------------------------------
-CODE EXAMPLE RULE:
-
-Every coding topic MUST include:
-    - Small inline examples for each concept
-    - One large complete runnable code example at the end
-
-Non-coding topics MUST include:
-    - Real-world scenarios
-    - No code at all
+Placement requirements:
+This section must appear:
+    ✔ RIGHT BEFORE "Conclusion"
+    ✔ After all explanation sections
+    ✔ Before "Mind Map" and "Diagram Placeholder"
 ---------------------------------------------------------------------
 
 OBJECTIVE:
