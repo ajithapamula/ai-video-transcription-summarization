@@ -25,11 +25,10 @@ import torch
 import boto3
 from botocore.exceptions import NoCredentialsError
 from openai import OpenAI
-from groq import Groq
 
 
-client = OpenAI()
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# === OpenAI Client ===
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # === GPU CHECK ===
 print("Using GPU:", torch.cuda.is_available())
@@ -41,13 +40,12 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 # === LOGGING ===
 logger = logging.getLogger("video_processor")
 logging.basicConfig(level=logging.INFO)
-logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # === AWS CONFIG ===
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
-AWS_S3_BUCKET = "imeetpro-225220763325"
+AWS_S3_BUCKET = "connectly-storage"
 
 s3_client = boto3.client(
     "s3",
@@ -68,7 +66,7 @@ MONGO_URI = (
 )
 
 mongo_client = MongoClient(MONGO_URI)
-db = mongo_client["ml_notes"]
+db = mongo_client["test"]
 collection = db["summaries"]
 
 # === HELPERS ===
@@ -183,13 +181,20 @@ def save_docx(content: str, path: str, image_path: str = None, title: str = ""):
     # === Save once ===
     doc.save(path)
 
+
 async def transcribe_chunk(chunk_file: str, offset: float):
+    """
+    Transcribe audio chunk using OpenAI Whisper API.
+    Returns list of segments with start, end, and text.
+    """
     try:
         with open(chunk_file, "rb") as f:
-            result = groq_client.audio.transcriptions.create(
-                model="whisper-large-v3",
+            # Use OpenAI Whisper API for transcription
+            result = client.audio.transcriptions.create(
+                model="whisper-1",
                 file=f,
-                response_format="verbose_json"
+                response_format="verbose_json",
+                timestamp_granularities=["segment"]
             )
 
         segments = []
@@ -198,14 +203,26 @@ async def transcribe_chunk(chunk_file: str, offset: float):
         if hasattr(result, "segments") and result.segments:
             for seg in result.segments:
                 segments.append({
-                    "start": offset + float(seg["start"]),
-                    "end": offset + float(seg["end"]),
-                    "text": seg["text"].strip()
+                    "start": offset + float(seg.get("start", 0)),
+                    "end": offset + float(seg.get("end", 0)),
+                    "text": seg.get("text", "").strip()
                 })
-
-        # CASE 2 — No segments, fallback
+        # CASE 2 — Check if segments is a list (dict-style response)
+        elif isinstance(result, dict) and result.get("segments"):
+            for seg in result["segments"]:
+                segments.append({
+                    "start": offset + float(seg.get("start", 0)),
+                    "end": offset + float(seg.get("end", 0)),
+                    "text": seg.get("text", "").strip()
+                })
+        # CASE 3 — No segments, fallback to full text
         else:
-            text = (result.text or "").strip()
+            text = ""
+            if hasattr(result, "text"):
+                text = (result.text or "").strip()
+            elif isinstance(result, dict):
+                text = (result.get("text", "") or "").strip()
+            
             if not text:
                 text = "[No speech detected]"
 
@@ -215,10 +232,11 @@ async def transcribe_chunk(chunk_file: str, offset: float):
                 "text": text
             })
 
+        logger.info(f"[INFO] Transcribed chunk with {len(segments)} segments")
         return segments
 
     except Exception as e:
-        logger.error(f"[GROQ ERROR] {e}")
+        logger.error(f"[OPENAI WHISPER ERROR] {e}")
         return [{
             "start": offset,
             "end": offset + 5,
@@ -297,7 +315,7 @@ Create a detailed, real-world step-by-step implementation or process guide for [
 - Reflect real-world tools, technologies, workflows, and industry terminology.
 - Break down each phase of the implementation or process logically and sequentially.
 - Include practical examples, code snippets (if applicable), key decisions, best practices, and commonly used tools at each step.
-- Highlight common challenges or misconceptions, and how they’re addressed in real practice.
+- Highlight common challenges or misconceptions, and how they're addressed in real practice.
 - Use terminology and structure that would support SMEs or instructional designers in generating high-quality technical questions based on the guide.
 - Avoid abstract or overly generic statements — focus on precision, clarity, and applied knowledge.
 - If the transcript is fully or mostly coding-related (Python, Java, JavaScript, React, SQL, DevOps, automation, APIs, backend, etc.), you must include complete coding examples with correct indentation, working syntax, and explanatory comments. You must also expand the matter to look like a proper coding implementation guide, including functions, scripts, API samples, folder structures, command-line usage, debugging steps, and real-world coding workflows.
@@ -371,7 +389,7 @@ Also:
 
  1. If something appears ambiguous, incorrect, or outdated, correct it to its current, supported version.
  2. Use only commands, APIs, or tool names that are verifiably valid and relevant to the topic context.
-- Consolidate duplicate or f                          ragmented instructions:
+- Consolidate duplicate or fragmented instructions:
  1. If a step or process is repeated across segments, merge them into a single, complete, and accurate version.
  2. Remove redundancy and preserve the most detailed and correct version of each step.
  3. Do NOT include deprecated or unverifiable content:
@@ -448,13 +466,14 @@ End Document with Standardized "Suggested Next Steps" Note
                 {"role": "user", "content": prompt}
             ],
             temperature=0.4,
-            max_tokens=14000 # new param in v1.x
+            max_tokens=14000
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"[ERROR] Summary generation failed: {e}")
         return "Summary generation failed."
     
+
 def analyze_trainer_performance(transcript: str) -> dict:
     """
     Analyze trainer's technical content, explanation clarity, friendliness, and communication
@@ -483,8 +502,8 @@ Evaluate across the following dimensions (each scored 0–100%):
 3. Friendliness — warmth, politeness, and positive tone.
 4. Communication – evaluate using Indian English standards:
    - Focus on fluency, confidence, and comfort with Indian accent.
-   - Accept light Indianisms such as “basically”, “ok na”, “ya”, etc.
-   - Penalize only unclear speech or excessive filler use (“umm”, “like”, “you know”).
+   - Accept light Indianisms such as "basically", "ok na", "ya", etc.
+   - Penalize only unclear speech or excessive filler use ("umm", "like", "you know").
    - Do not reduce marks for accent style — evaluate clarity, not foreign pronunciation.
 Output a short, factual JSON report with numeric scores and 1–2 lines of feedback.
 Format exactly as:
@@ -522,6 +541,210 @@ Format exactly as:
         logger.error(f"[ERROR] Trainer performance evaluation failed: {e}")
         return {"error": str(e)}
 
+
+def burn_subtitles_to_video(input_video: str, subtitle_file: str, output_video: str, workdir: str):
+    """
+    Burns subtitles into video using FFmpeg.
+    Uses multiple fallback methods to handle path escaping issues.
+    
+    Args:
+        input_video: Path to input video file
+        subtitle_file: Path to subtitle file (.srt)
+        output_video: Path to output video file
+        workdir: Working directory for temporary operations
+    
+    Returns:
+        True if subtitles were burned successfully, False otherwise
+    """
+    
+    # Method 1: Copy all files to workdir and use relative paths (most reliable)
+    try:
+        logger.info("[INFO] Attempting subtitle burn-in using relative paths method...")
+        
+        # Ensure all files are in workdir with simple names
+        input_basename = "input_video.mp4"
+        subtitle_basename = "subs.srt"
+        output_basename = "output_video.mp4"
+        
+        input_local = os.path.join(workdir, input_basename)
+        subtitle_local = os.path.join(workdir, subtitle_basename)
+        output_local = os.path.join(workdir, output_basename)
+        
+        # Copy input video if not already in workdir
+        if os.path.abspath(input_video) != os.path.abspath(input_local):
+            shutil.copy(input_video, input_local)
+        
+        # Copy subtitle file
+        shutil.copy(subtitle_file, subtitle_local)
+        
+        # Verify files exist
+        if not os.path.exists(input_local):
+            raise FileNotFoundError(f"Input video not found: {input_local}")
+        if not os.path.exists(subtitle_local):
+            raise FileNotFoundError(f"Subtitle file not found: {subtitle_local}")
+        
+        logger.info(f"[INFO] Input video: {input_local} ({os.path.getsize(input_local)} bytes)")
+        logger.info(f"[INFO] Subtitle file: {subtitle_local} ({os.path.getsize(subtitle_local)} bytes)")
+        
+        # Save current directory and change to workdir
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(workdir)
+            
+            # Run FFmpeg with relative paths
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", input_basename,
+                "-vf", f"subtitles={subtitle_basename}:force_style='FontName=Arial,FontSize=18'",
+                "-c:v", "libx264",
+                "-c:a", "aac",
+                output_basename
+            ]
+            
+            logger.info(f"[INFO] Running FFmpeg command: {' '.join(cmd)}")
+            
+            result = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            
+            # Copy output to desired location if different
+            if os.path.abspath(output_video) != os.path.abspath(output_local):
+                shutil.copy(output_local, output_video)
+            
+            logger.info("[INFO] Subtitle burn-in successful using relative paths method")
+            return True
+            
+        finally:
+            os.chdir(original_cwd)
+            
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"[WARNING] Relative paths method failed: {e.stderr}")
+    except Exception as e:
+        logger.warning(f"[WARNING] Relative paths method failed: {e}")
+    
+    # Method 2: Use absolute path with proper escaping
+    try:
+        logger.info("[INFO] Attempting subtitle burn-in using escaped absolute path method...")
+        
+        # Escape special characters for FFmpeg subtitle filter
+        escaped_subtitle = subtitle_file.replace("\\", "/")
+        escaped_subtitle = escaped_subtitle.replace(":", "\\:")
+        escaped_subtitle = escaped_subtitle.replace("'", "\\'")
+        escaped_subtitle = escaped_subtitle.replace("[", "\\[")
+        escaped_subtitle = escaped_subtitle.replace("]", "\\]")
+        
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", input_video,
+            "-vf", f"subtitles='{escaped_subtitle}':force_style='FontName=Arial,FontSize=18'",
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            output_video
+        ]
+        
+        logger.info(f"[INFO] Running FFmpeg command: {' '.join(cmd)}")
+        
+        result = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        
+        logger.info("[INFO] Subtitle burn-in successful using escaped absolute path method")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"[WARNING] Escaped absolute path method failed: {e.stderr}")
+    except Exception as e:
+        logger.warning(f"[WARNING] Escaped absolute path method failed: {e}")
+    
+    # Method 3: Use ASS conversion (alternative approach)
+    try:
+        logger.info("[INFO] Attempting subtitle burn-in using ASS conversion method...")
+        
+        # Convert SRT to ASS format first
+        ass_file = subtitle_file.rsplit('.', 1)[0] + '.ass'
+        
+        # Convert SRT to ASS
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", subtitle_file, ass_file],
+            check=True,
+            capture_output=True
+        )
+        
+        # Copy ASS to workdir with simple name
+        ass_local = os.path.join(workdir, "subs.ass")
+        shutil.copy(ass_file, ass_local)
+        
+        # Copy input to workdir
+        input_local = os.path.join(workdir, "input_video.mp4")
+        if os.path.abspath(input_video) != os.path.abspath(input_local):
+            shutil.copy(input_video, input_local)
+        
+        output_local = os.path.join(workdir, "output_video.mp4")
+        
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(workdir)
+            
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", "input_video.mp4",
+                "-vf", "ass=subs.ass",
+                "-c:v", "libx264",
+                "-c:a", "aac",
+                "output_video.mp4"
+            ]
+            
+            logger.info(f"[INFO] Running FFmpeg command: {' '.join(cmd)}")
+            
+            result = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            
+            if os.path.abspath(output_video) != os.path.abspath(output_local):
+                shutil.copy(output_local, output_video)
+            
+            logger.info("[INFO] Subtitle burn-in successful using ASS conversion method")
+            return True
+            
+        finally:
+            os.chdir(original_cwd)
+            
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"[WARNING] ASS conversion method failed: {e.stderr}")
+    except Exception as e:
+        logger.warning(f"[WARNING] ASS conversion method failed: {e}")
+    
+    # Method 4: Fallback - copy video without subtitles
+    try:
+        logger.warning("[WARNING] All subtitle methods failed, copying video without embedded subtitles...")
+        
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", input_video,
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            output_video
+        ]
+        
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        
+        logger.info("[INFO] Video copied without subtitles (fallback)")
+        return False  # Return False to indicate subtitles weren't burned
+        
+    except Exception as e:
+        logger.error(f"[ERROR] All subtitle burn-in methods failed: {e}")
+        raise RuntimeError(f"Failed to process video with subtitles: {e}")
+
+
 # === VIDEO PROCESS ===
 async def process_video(video_path: str, meeting_id: str, user_id: str):
     with TemporaryDirectory() as workdir:
@@ -529,6 +752,7 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
         audio_path = os.path.join(workdir, "audio.wav")
 
         # 1️⃣ Compression + Noise Cancellation
+        logger.info("[INFO] Step 1: Compressing video with noise cancellation...")
         subprocess.run([
             "ffmpeg", "-y", "-i", video_path,
             "-af", "afftdn=nf=-25",
@@ -537,12 +761,14 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
         ], check=True)
 
         # 2️⃣ Extract Audio for Transcription
+        logger.info("[INFO] Step 2: Extracting audio...")
         subprocess.run([
             "ffmpeg", "-y", "-i", compressed,
             "-ar", "16000", "-ac", "1", "-vn", audio_path
         ], check=True)
 
-        # 3️⃣ Transcription (Whisper)
+        # 3️⃣ Transcription (OpenAI Whisper)
+        logger.info("[INFO] Step 3: Transcribing audio with OpenAI Whisper...")
         audio = AudioSegment.from_wav(audio_path)
         chunk_length = 5 * 60 * 1000  # 5 mins
         audio_chunks = []
@@ -550,17 +776,23 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
             chunk_file = os.path.join(workdir, f"chunk_{i//chunk_length}.wav")
             chunk = audio[i:i + chunk_length]
             chunk.export(chunk_file, format="wav")
-            offset = audio[:i].duration_seconds
+            offset = i / 1000
             audio_chunks.append((chunk_file, offset))
 
+        logger.info(f"[INFO] Processing {len(audio_chunks)} audio chunks...")
         tasks = [transcribe_chunk(path, offset) for path, offset in audio_chunks]
         chunk_results = await asyncio.gather(*tasks)
         all_segments = [seg for result in chunk_results for seg in result]
-        full_transcript = " ".join(seg['text'] for seg in all_segments)
+        full_transcript = ' '.join(seg['text'] for seg in all_segments)
+        
+        logger.info(f"[INFO] Transcription complete: {len(all_segments)} segments, {len(full_transcript)} characters")
+
         # 3️⃣.1 Trainer Performance Evaluation
+        logger.info("[INFO] Step 3.1: Evaluating trainer performance...")
         trainer_scores = analyze_trainer_performance(full_transcript)
 
         # 4️⃣ Subtitles Generation (English, Hindi, Telugu)
+        logger.info("[INFO] Step 4: Generating subtitles in multiple languages...")
         srt_paths = {}
         for lang in ["en", "hi", "te"]:
             translated = []
@@ -581,31 +813,31 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
             srt_paths[lang] = srt_path
 
         # Debug: verify subtitle file
-        print("🟦 Subtitle check:")
-        print(f"  Exists: {os.path.exists(srt_paths['en'])}")
+        logger.info("🟦 Subtitle check:")
+        logger.info(f"  Exists: {os.path.exists(srt_paths['en'])}")
         if os.path.exists(srt_paths['en']):
-            print(f"  Size: {os.path.getsize(srt_paths['en'])} bytes")
+            logger.info(f"  Size: {os.path.getsize(srt_paths['en'])} bytes")
 
-        # 5️⃣ Captioned Video Overlay (with correct FFmpeg escaping)
+        # 5️⃣ Captioned Video Overlay (with robust FFmpeg handling)
+        logger.info("[INFO] Step 5: Burning subtitles into video...")
         captioned = os.path.join(workdir, "captioned.mp4")
-        srt_path_fixed = os.path.abspath(srt_paths["en"]).replace("\\", "/")
-        if not os.path.exists(srt_path_fixed):
-            raise FileNotFoundError(f"Subtitle file missing: {srt_path_fixed}")
-
-        cmd = [
-            "ffmpeg", "-y",
-            "-i", compressed,
-            "-vf", f"subtitles={srt_path_fixed}:force_style='FontName=Arial\\,FontSize=18'",
-            "-c:v", "libx264", "-c:a", "aac",
-            captioned
-        ]
-        print("🟩 FFmpeg command:", " ".join(cmd))
-        subprocess.run(cmd, check=True)
+        
+        subtitles_burned = burn_subtitles_to_video(
+            input_video=compressed,
+            subtitle_file=srt_paths["en"],
+            output_video=captioned,
+            workdir=workdir
+        )
+        
+        if not subtitles_burned:
+            logger.warning("[WARNING] Subtitles could not be burned into video, continuing without embedded subtitles")
 
         # 6️⃣ Summary Generation (LLM)
+        logger.info("[INFO] Step 6: Generating summary with GPT-4o...")
         summary_text_raw = summarize_segment(full_transcript)
 
         # 7️⃣ Mind Map Extraction (use RAW text)
+        logger.info("[INFO] Step 7: Extracting and generating mind map...")
         image_path = os.path.join(workdir, "mindmap.png")
         image_url = None
 
@@ -631,6 +863,7 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
         summary_text_raw_no_dot = re.sub(r"digraph\s+[A-Za-z0-9_]*\s*\{.*?\}", "", summary_text_raw_no_dot, flags=re.DOTALL)
 
         # 8️⃣ Clean markdown *after* removing DOT
+        logger.info("[INFO] Step 8: Creating document files...")
         summary_text = clean_markdown(summary_text_raw_no_dot)
         transcript_doc = os.path.join(workdir, "transcript.docx")
         summary_doc = os.path.join(workdir, "summary.docx")
@@ -640,7 +873,9 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
         save_docx(summary_text, summary_doc,
                 image_path if image_url else None,
                 title="Summary Report")
+        
         # 9️⃣ Uploads to AWS S3
+        logger.info("[INFO] Step 9: Uploading files to AWS S3...")
         video_url = upload_to_s3("videos", captioned,
                                  f"{meeting_id}_{user_id}_captioned.mp4")
         transcript_url = upload_to_s3("transcripts", transcript_doc,
@@ -655,6 +890,7 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
             )
 
         # 🔟 Save Metadata to MongoDB
+        logger.info("[INFO] Step 10: Saving metadata to MongoDB...")
         collection.insert_one({
             "meeting_id": meeting_id,
             "user_id": user_id,
@@ -667,8 +903,11 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
             "transcript_text": full_transcript,
             "summary": summary_text,
             "trainer_evaluation": trainer_scores,
+            "subtitles_embedded": subtitles_burned,
             "timestamp": datetime.now()
         })
+
+        logger.info("[INFO] ✅ Video processing completed successfully!")
 
         # ✅ Return API Response
         return {
@@ -677,8 +916,11 @@ async def process_video(video_path: str, meeting_id: str, user_id: str):
             "transcript_url": transcript_url,
             "summary_url": summary_url,
             "summary_image_url": image_url,
-            "subtitle_urls": subtitle_urls
+            "subtitle_urls": subtitle_urls,
+            "subtitles_embedded": subtitles_burned,
+            "trainer_evaluation": trainer_scores
         }
+
 
 # === ROUTES ===
 @app.post("/upload/")
@@ -694,6 +936,7 @@ async def upload_single(file: UploadFile = File(...), meeting_id: str = Form(...
                 "summary_url": existing.get("summary_url"),
                 "summary_image_url": existing.get("image_url"),
                 "subtitle_urls": existing.get("subtitles"),
+                "trainer_evaluation": existing.get("trainer_evaluation"),
                 "message": "Already processed."
             }
 
@@ -709,13 +952,20 @@ async def upload_single(file: UploadFile = File(...), meeting_id: str = Form(...
         logger.exception("Upload failed")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/")
 def home():
-    with open("static/index.html", "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+    try:
+        with open("static/index.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(content="<h1>Video Processor API</h1><p>Upload endpoint: POST /upload/</p>")
+
+
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8010, reload=True)
