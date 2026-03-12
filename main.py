@@ -64,12 +64,12 @@ mongo_port = "27017"
 
 MONGO_URI = (
     f"mongodb://{mongo_user}:{mongo_password}@"
-    f"{mongo_host}:{mongo_port}/ml_notes?authSource=admin"
+    f"{mongo_host}:{mongo_port}/test?authSource=admin"
 )
 
 mongo_client = MongoClient(MONGO_URI)
-db = mongo_client["ml_notes"]
-collection = db["summaries"]
+db = mongo_client["test"]
+collection = db["Developer"]
 
 # === HELPERS ===
 
