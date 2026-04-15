@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Meeting Recording Uploader</title>
+  <title>iMentora — Meeting Recording Uploader</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <style>
+    * { box-sizing: border-box; }
     body {
       font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
+      background-color: #f0f2f5;
       margin: 0;
       padding: 20px;
       min-height: 100vh;
@@ -15,309 +16,519 @@
     .main-container {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 24px;
       max-width: 1200px;
       margin: 0 auto;
+    }
+    .page-title {
+      text-align: center;
+      color: #1F5C99;
+      font-size: 26px;
+      font-weight: bold;
+      margin: 10px 0 0 0;
+      letter-spacing: 0.5px;
     }
     .container {
       background-color: white;
       padding: 30px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      text-align: center;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
     }
-    .upload-container {
-      max-width: 500px;
-      margin: 0 auto;
+    .container h2 {
+      color: #1F5C99;
+      margin-top: 0;
+      border-bottom: 2px solid #e8eef5;
+      padding-bottom: 12px;
     }
-    .recordings-container {
-      width: 100%;
+    .upload-container { max-width: 540px; margin: 0 auto; }
+    .recordings-container { width: 100%; }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
     }
+    .form-row input,
+    .form-row select {
+      flex: 1;
+    }
+
     input, select, button {
-      margin: 10px 0;
-      padding: 10px;
+      margin: 8px 0;
+      padding: 10px 14px;
       width: 100%;
-      font-size: 16px;
-      box-sizing: border-box;
+      font-size: 15px;
+      border: 1px solid #ced4da;
+      border-radius: 5px;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #1F5C99;
+      box-shadow: 0 0 0 2px rgba(31,92,153,0.15);
     }
     button {
-      background-color: #007bff;
+      background-color: #1F5C99;
       color: white;
       border: none;
       cursor: pointer;
-      border-radius: 4px;
+      font-weight: 600;
+      transition: background 0.2s;
     }
-    button:hover {
-      background-color: #0056b3;
+    button:hover { background-color: #174d82; }
+    button:disabled { background-color: #9ab3cc; cursor: not-allowed; }
+
+    .btn-green  { background-color: #28a745; }
+    .btn-green:hover { background-color: #1e7e34; }
+    .btn-red    { background-color: #dc3545; }
+    .btn-red:hover { background-color: #b02a37; }
+    .btn-sm {
+      padding: 6px 14px;
+      font-size: 13px;
+      width: auto;
+      margin: 0;
     }
-    button:disabled {
+    .btn-uuid {
+      width: auto;
+      padding: 10px 14px;
+      font-size: 14px;
       background-color: #6c757d;
-      cursor: not-allowed;
+      margin: 8px 0;
     }
-    .secondary-btn {
-      background-color: #28a745;
-    }
-    .secondary-btn:hover {
-      background-color: #1e7e34;
-    }
+    .btn-uuid:hover { background-color: #565e64; }
+
     #status {
-      margin-top: 20px;
+      margin-top: 16px;
       white-space: pre-wrap;
       text-align: left;
       font-weight: bold;
+      font-size: 14px;
+      padding: 12px;
+      border-radius: 5px;
+      background: #f8f9fa;
     }
+
     .recordings-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
+      margin-top: 16px;
+      font-size: 14px;
     }
     .recordings-table th,
     .recordings-table td {
-      border: 1px solid #ddd;
-      padding: 12px;
+      border: 1px solid #dee2e6;
+      padding: 11px 14px;
       text-align: left;
+      vertical-align: middle;
     }
     .recordings-table th {
-      background-color: #f8f9fa;
-      font-weight: bold;
+      background-color: #1F5C99;
+      color: white;
+      font-weight: 600;
     }
-    .recordings-table tr:nth-child(even) {
-      background-color: #f8f9fa;
+    .recordings-table tr:nth-child(even) { background-color: #f8f9fa; }
+    .recordings-table tr:hover { background-color: #e8eef5; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
     }
-    .recordings-table tr:hover {
-      background-color: #e9ecef;
-    }
+    .badge-dev    { background: #d1ecf1; color: #0c5460; }
+    .badge-nondev { background: #d4edda; color: #155724; }
+
     .no-recordings {
       text-align: center;
       color: #6c757d;
       font-style: italic;
-      margin: 20px 0;
+      padding: 30px;
     }
     .error-message {
-      color: red;
-      margin: 10px 0;
+      color: #dc3545;
+      background: #fce8e8;
+      padding: 10px 14px;
+      border-radius: 5px;
+      margin: 8px 0;
+      font-size: 14px;
     }
     .section-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
-    .refresh-btn {
-      padding: 8px 16px;
-      font-size: 14px;
-      width: auto;
-      margin: 0;
-    }
+    .section-header h2 { margin: 0; border: none; padding: 0; }
     .user-input-section {
-      margin-bottom: 20px;
-      padding: 20px;
-      background-color: #f8f9fa;
-      border-radius: 4px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 16px;
+      padding: 16px;
+      background-color: #f0f4f9;
+      border-radius: 6px;
     }
+    .user-input-section input { margin: 0; flex: 1; }
+    .user-input-section button { margin: 0; width: auto; padding: 10px 20px; }
+
+    .progress-bar-wrap {
+      width: 100%;
+      background: #e9ecef;
+      border-radius: 5px;
+      height: 10px;
+      margin-top: 10px;
+      display: none;
+    }
+    .progress-bar {
+      height: 10px;
+      border-radius: 5px;
+      background: linear-gradient(90deg, #1F5C99, #28a745);
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+
+    .link-cell a {
+      color: #1F5C99;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .link-cell a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div class="main-container">
-    <!-- Upload Section -->
+
+    <h1 class="page-title">🎓 iMentora — Training Video Processor</h1>
+
+    <!-- ── Upload Section ── -->
     <div class="container upload-container">
-      <h2>Upload Meeting Video</h2>
-      <form id="uploadForm" enctype="multipart/form-data" action="/upload-video/" method="post">
+      <h2>📤 Upload Meeting Video</h2>
+      <form id="uploadForm" enctype="multipart/form-data">
+
         <input type="file" name="file" id="file" accept=".mp4,.mov,.avi,.mkv" required>
-        <input type="text" name="meeting_id" id="meeting_id" placeholder="Enter Meeting ID (UUID format)" required>
-        <input type="number" name="user_id" id="user_id" placeholder="Enter User ID" required>
-        <button type="submit" id="uploadBtn">Upload & Process</button>
+
+        <div class="form-row">
+          <input type="text"   id="meeting_id" placeholder="Meeting ID (UUID)" required>
+          <button type="button" class="btn-uuid" id="genUuidBtn">Generate UUID</button>
+        </div>
+
+        <input type="number" id="user_id"  placeholder="Trainer User ID" required>
+
+        <div class="form-row">
+          <input type="text"   id="batch_id" placeholder="Batch ID (e.g. 18)">
+          <input type="text"   id="course"   placeholder="Course (e.g. Cybersecurity)">
+        </div>
+
+        <button type="submit" id="uploadBtn">⬆ Upload &amp; Process</button>
       </form>
+
+      <div class="progress-bar-wrap" id="progressWrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
       <pre id="status"></pre>
+
+      <!-- PDF download button appears after successful upload -->
+      <div id="pdfDownloadArea" style="display:none; margin-top:16px; text-align:center;">
+        <a id="pdfDownloadLink" href="#" target="_blank" style="text-decoration:none;">
+          <button type="button" style="
+            background: #dc3545;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 14px 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            letter-spacing: 0.5px;
+          ">
+            ⬇ Download Class Notes PDF
+          </button>
+        </a>
+        <p style="color:#6c757d; font-size:12px; margin:6px 0 0 0;">
+          Click to open or download the summary PDF
+        </p>
+      </div>
     </div>
 
-    <!-- Recordings Section -->
+    <!-- ── Recordings Section ── -->
     <div class="container recordings-container">
       <div class="section-header">
-        <h2>My Recordings</h2>
-        <button class="secondary-btn refresh-btn" onclick="refreshRecordings()">Refresh</button>
-      </div>
-      
-      <div class="user-input-section">
-        <input type="number" id="viewUserId" placeholder="Enter User ID to view recordings">
-        <button class="secondary-btn" onclick="loadRecordings()">Load Recordings</button>
+        <h2>📋 Recordings</h2>
+        <button class="btn-green btn-sm" onclick="refreshRecordings()">🔄 Refresh</button>
       </div>
 
-      <div id="recordingsError" class="error-message" style="display: none;"></div>
+      <div class="user-input-section">
+        <input type="number" id="viewUserId" placeholder="Enter User ID to view recordings">
+        <button class="btn-green" onclick="loadRecordings()">Load Recordings</button>
+      </div>
+
+      <div id="recordingsError" class="error-message" style="display:none;"></div>
       <div id="recordingsContent">
         <div class="no-recordings">Enter a User ID above to view recordings</div>
       </div>
     </div>
+
   </div>
 
   <script>
     let currentUserId = null;
 
+    // ── UUID generator ──────────────────────────────────────
+    function generateUUID() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+    }
+    document.getElementById('genUuidBtn').onclick = () => {
+      document.getElementById('meeting_id').value = generateUUID();
+    };
+
+    // ── Upload form ─────────────────────────────────────────
     document.getElementById('uploadForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const file = document.getElementById("file").files[0];
-      const meeting_id = document.getElementById("meeting_id").value;
-      const user_id = document.getElementById("user_id").value;
-      const status = document.getElementById("status");
-      const uploadBtn = document.getElementById("uploadBtn");
+
+      const file       = document.getElementById('file').files[0];
+      const meeting_id = document.getElementById('meeting_id').value.trim();
+      const user_id    = document.getElementById('user_id').value.trim();
+      const batch_id   = document.getElementById('batch_id').value.trim();
+      const course     = document.getElementById('course').value.trim();
+      const status     = document.getElementById('status');
+      const uploadBtn  = document.getElementById('uploadBtn');
+      const progWrap   = document.getElementById('progressWrap');
+      const progBar    = document.getElementById('progressBar');
 
       if (!file || !meeting_id || !user_id) {
-        status.textContent = "All fields are required.";
-        status.style.color = "red";
+        status.textContent = '❌ File, Meeting ID and User ID are required.';
+        status.style.color = 'red';
         return;
       }
 
-      // Basic UUID validation
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       if (!uuidPattern.test(meeting_id)) {
-        status.textContent = "Meeting ID must be a valid UUID format (e.g., 123e4567-e89b-12d3-a456-426614174000)";
-        status.style.color = "red";
+        status.textContent = '❌ Meeting ID must be a valid UUID.\nClick "Generate UUID" to create one.';
+        status.style.color = 'red';
         return;
       }
 
       const formData = new FormData();
-      formData.append("file", file);
-      formData.append("meeting_id", meeting_id);
-      formData.append("user_id", user_id);
+      formData.append('file',       file);
+      formData.append('meeting_id', meeting_id);
+      formData.append('user_id',    user_id);
+      if (batch_id) formData.append('batch_id', batch_id);
+      if (course)   formData.append('course',   course);
 
-      status.style.color = "black";
-      status.textContent = "⏳ Uploading and processing...";
+      status.style.color = '#333';
+      status.textContent = '⏳ Uploading and processing…\nThis may take several minutes for long videos.';
       uploadBtn.disabled = true;
-      uploadBtn.textContent = "Processing...";
+      uploadBtn.textContent = '⏳ Processing…';
+      progWrap.style.display = 'block';
+      document.getElementById('pdfDownloadArea').style.display = 'none';
+
+      // Fake progress animation while server processes
+      let pct = 0;
+      const ticker = setInterval(() => {
+        pct = Math.min(pct + Math.random() * 3, 90);
+        progBar.style.width = pct + '%';
+      }, 800);
 
       try {
-        const response = await fetch("/upload", {
-          method: "POST",
-          body: formData
-        });
-        const result = await response.json();
+        const response = await fetch('/upload/', { method: 'POST', body: formData });
+        const result   = await response.json();
+
+        clearInterval(ticker);
+        progBar.style.width = '100%';
+
         if (response.ok) {
-          status.textContent = `✅ ${result.message}\n\nFilename: ${result.filename}\nMeeting ID: ${result.meeting_id}`;
-          status.style.color = "green";
-          
-          // Clear form
-          document.getElementById("uploadForm").reset();
-          
-          // Auto-refresh recordings if viewing the same user
+          let msg = `✅ Processing complete!\n\nFile: ${result.file || file.name}`;
+          if (result.domain)        msg += `\nDomain: ${result.domain}`;
+          if (result.summary_url)   msg += `\nSummary PDF: ${result.summary_url}`;
+          if (result.video_url)     msg += `\nVideo: ${result.video_url}`;
+          if (result.transcript_url) msg += `\nTranscript: ${result.transcript_url}`;
+          if (batch_id)             msg += `\nBatch ID: ${batch_id}`;
+          if (course)               msg += `\nCourse: ${course}`;
+
+          status.textContent = msg;
+          status.style.color = 'green';
+          document.getElementById('uploadForm').reset();
+
+          // Show PDF download button if URL available
+          const pdfArea = document.getElementById('pdfDownloadArea');
+          const pdfLink = document.getElementById('pdfDownloadLink');
+          const pdfUrl  = result.summary_url || result.summary_pdf_url || '';
+          if (pdfUrl) {
+            pdfLink.href          = pdfUrl;
+            pdfArea.style.display = 'block';
+          } else {
+            pdfArea.style.display = 'none';
+          }
+
           if (currentUserId && currentUserId == user_id) {
-            setTimeout(() => {
-              loadRecordings();
-            }, 2000);
+            setTimeout(loadRecordings, 2000);
           }
         } else {
-          status.textContent = `❌ Upload failed: ${result.detail}`;
-          status.style.color = "red";
+          status.textContent = `❌ Upload failed:\n${result.detail || JSON.stringify(result)}`;
+          status.style.color = 'red';
         }
       } catch (err) {
+        clearInterval(ticker);
         status.textContent = `❌ Error: ${err.message}`;
-        status.style.color = "red";
+        status.style.color = 'red';
       } finally {
         uploadBtn.disabled = false;
-        uploadBtn.textContent = "Upload & Process";
+        uploadBtn.textContent = '⬆ Upload & Process';
+        setTimeout(() => { progWrap.style.display = 'none'; progBar.style.width = '0%'; }, 3000);
       }
     });
 
+    // ── Load recordings ─────────────────────────────────────
     async function loadRecordings() {
-      const userIdInput = document.getElementById("viewUserId");
-      const userId = userIdInput.value;
-      const errorDiv = document.getElementById("recordingsError");
-      const contentDiv = document.getElementById("recordingsContent");
+      const userId     = document.getElementById('viewUserId').value.trim();
+      const errorDiv   = document.getElementById('recordingsError');
+      const contentDiv = document.getElementById('recordingsContent');
 
       if (!userId) {
-        errorDiv.textContent = "Please enter a User ID";
-        errorDiv.style.display = "block";
+        errorDiv.textContent = 'Please enter a User ID';
+        errorDiv.style.display = 'block';
         return;
       }
 
-      errorDiv.style.display = "none";
-      contentDiv.innerHTML = '<div class="no-recordings">Loading recordings...</div>';
-      currentUserId = parseInt(userId);
+      errorDiv.style.display = 'none';
+      contentDiv.innerHTML   = '<div class="no-recordings">⏳ Loading recordings…</div>';
+      currentUserId          = parseInt(userId);
 
       try {
-        const response = await fetch(`/recordings?user_id=${userId}`);
-        const result = await response.json();
+        // Try both Developer and Non-Developer collections
+        const [devRes, nonDevRes] = await Promise.all([
+          fetch(`/recordings?user_id=${userId}&collection=Developer`).catch(() => null),
+          fetch(`/recordings?user_id=${userId}&collection=Non-Developer`).catch(() => null),
+        ]);
 
-        if (response.ok) {
-          displayRecordings(result.recordings);
-        } else {
-          throw new Error(result.detail || 'Failed to fetch recordings');
+        let allRecordings = [];
+
+        if (devRes && devRes.ok) {
+          const d = await devRes.json();
+          (d.recordings || d || []).forEach(r => { r._collection = 'Developer'; allRecordings.push(r); });
         }
+        if (nonDevRes && nonDevRes.ok) {
+          const d = await nonDevRes.json();
+          (d.recordings || d || []).forEach(r => { r._collection = 'Non-Developer'; allRecordings.push(r); });
+        }
+
+        // Fallback — single endpoint
+        if (allRecordings.length === 0) {
+          const res = await fetch(`/recordings?user_id=${userId}`);
+          if (res.ok) {
+            const d = await res.json();
+            allRecordings = d.recordings || d || [];
+          }
+        }
+
+        displayRecordings(allRecordings);
       } catch (err) {
-        errorDiv.textContent = `Error loading recordings: ${err.message}`;
-        errorDiv.style.display = "block";
-        contentDiv.innerHTML = '<div class="no-recordings">Failed to load recordings</div>';
+        errorDiv.textContent   = `Error loading recordings: ${err.message}`;
+        errorDiv.style.display = 'block';
+        contentDiv.innerHTML   = '<div class="no-recordings">Failed to load recordings</div>';
       }
     }
 
+    // ── Display recordings table ────────────────────────────
     function displayRecordings(recordings) {
-      const contentDiv = document.getElementById("recordingsContent");
-      
+      const contentDiv = document.getElementById('recordingsContent');
+
       if (!recordings || recordings.length === 0) {
         contentDiv.innerHTML = '<div class="no-recordings">No recordings found for this user</div>';
         return;
       }
 
-      let tableHTML = `
+      let html = `
         <table class="recordings-table">
           <thead>
             <tr>
+              <th>#</th>
               <th>Meeting ID</th>
-              <th>Meeting Name</th>
-              <th>File Name</th>
+              <th>Domain</th>
+              <th>Batch / Course</th>
+              <th>Type</th>
+              <th>File</th>
+              <th>Date</th>
+              <th>Summary PDF</th>
+              <th>Video</th>
+              <th>Transcript</th>
             </tr>
           </thead>
           <tbody>
       `;
 
-      recordings.forEach(recording => {
-        tableHTML += `
+      recordings.forEach((r, i) => {
+        const domain    = r.domain    || r.meeting_name || 'N/A';
+        const batch     = r.batch_id  || '—';
+        const course    = r.course    || '—';
+        const filename  = r.filename  || r.file_name || 'N/A';
+        const userType  = r.user_type || '';
+        const date      = r.timestamp ? new Date(r.timestamp * 1000).toLocaleDateString('en-IN') : '—';
+
+        const summaryUrl    = r.summary_url     || r.summary_pdf_url || '';
+        const videoUrl      = r.video_url       || '';
+        const transcriptUrl = r.transcript_url  || '';
+
+        const typeBadge = userType === 'dev'
+          ? '<span class="badge badge-dev">Developer</span>'
+          : userType === 'non_dev'
+            ? '<span class="badge badge-nondev">Non-Dev</span>'
+            : '—';
+
+        const pdfBtn = summaryUrl
+          ? `<a href="${summaryUrl}" target="_blank">
+               <button class="btn-red btn-sm">⬇ PDF</button>
+             </a>`
+          : '<span style="color:#aaa;font-size:12px">Not ready</span>';
+
+        const videoBtn = videoUrl
+          ? `<a href="${videoUrl}" target="_blank">
+               <button class="btn-sm" style="background:#17a2b8">▶ Watch</button>
+             </a>`
+          : '—';
+
+        const transcriptBtn = transcriptUrl
+          ? `<a href="${transcriptUrl}" target="_blank">
+               <button class="btn-sm" style="background:#6c757d">📄 DOCX</button>
+             </a>`
+          : '—';
+
+        html += `
           <tr>
-            <td>${recording.id || 'N/A'}</td>
-            <td>${recording.meeting_name || 'N/A'}</td>
-            <td>${recording.file_name || 'N/A'}</td>
+            <td>${i + 1}</td>
+            <td style="font-size:12px;font-family:monospace">${(r.meeting_id || r.id || 'N/A').substring(0, 18)}…</td>
+            <td><strong>${domain}</strong></td>
+            <td style="font-size:13px">${batch} / ${course}</td>
+            <td>${typeBadge}</td>
+            <td style="font-size:12px">${filename}</td>
+            <td style="font-size:12px">${date}</td>
+            <td>${pdfBtn}</td>
+            <td>${videoBtn}</td>
+            <td>${transcriptBtn}</td>
           </tr>
         `;
       });
 
-      tableHTML += `
-          </tbody>
-        </table>
-      `;
-
-      contentDiv.innerHTML = tableHTML;
+      html += '</tbody></table>';
+      html += `<p style="color:#6c757d;font-size:13px;margin-top:10px">
+                 Showing ${recordings.length} recording${recordings.length !== 1 ? 's' : ''}
+               </p>`;
+      contentDiv.innerHTML = html;
     }
 
     function refreshRecordings() {
       if (currentUserId) {
+        document.getElementById('viewUserId').value = currentUserId;
         loadRecordings();
       } else {
-        const errorDiv = document.getElementById("recordingsError");
-        errorDiv.textContent = "No user selected. Please enter a User ID first.";
-        errorDiv.style.display = "block";
+        const e = document.getElementById('recordingsError');
+        e.textContent     = 'No user selected. Please enter a User ID first.';
+        e.style.display   = 'block';
       }
     }
-
-    // Auto-generate UUID for meeting ID
-    function generateUUID() {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-    }
-
-    // Add button to generate UUID
-    document.addEventListener('DOMContentLoaded', function() {
-      const meetingIdInput = document.getElementById('meeting_id');
-      const generateBtn = document.createElement('button');
-      generateBtn.type = 'button';
-      generateBtn.textContent = 'Generate UUID';
-      generateBtn.style.width = 'auto';
-      generateBtn.style.marginLeft = '10px';
-      generateBtn.onclick = function() {
-        meetingIdInput.value = generateUUID();
-      };
-      meetingIdInput.parentNode.insertBefore(generateBtn, meetingIdInput.nextSibling);
-    });
   </script>
 </body>
 </html>
